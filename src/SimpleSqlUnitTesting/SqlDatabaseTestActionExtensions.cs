@@ -8,6 +8,13 @@ namespace SimpleSqlUnitTesting
 {
     public static class SqlDatabaseTestActionExtensions
     {
+        public static SqlDatabaseTestAction Then(this SqlDatabaseTestAction action, string sql)
+        {
+            return new SqlDatabaseTestAction()
+            {
+                SqlScript = action.SqlScript + "\r\n" + sql
+            };
+        }
 
         public static SqlDatabaseTestActions SetPretest(this SqlDatabaseTestActions actions, string sql)
         {
@@ -16,6 +23,12 @@ namespace SimpleSqlUnitTesting
                 SqlScript = sql
             };
 
+            return actions;
+        }
+
+        public static SqlDatabaseTestActions SetPretest(this SqlDatabaseTestActions actions, params SqlDatabaseTestAction[] pretestActions)
+        {
+            actions.PretestAction = Actions.CreateSingle(pretestActions);
             return actions;
         }
 
@@ -33,7 +46,7 @@ namespace SimpleSqlUnitTesting
             int resultSet,
             string[] expectedStrings)
         {
-            var jagged = new[] {expectedStrings};
+            var jagged = new[] { expectedStrings };
             actions.TestAction.ResultsetShouldBe(resultSet, JaggedToRectangular(jagged));
             return actions;
         }
@@ -51,10 +64,40 @@ namespace SimpleSqlUnitTesting
             string expectedStrings)
         {
             var rows = expectedStrings
-                .Split(new[] {Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.Split('\t'))
+                .Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(x => x.Split(',').Select(s => s.Trim()).ToArray())
                 .ToArray();
             actions.TestAction.ResultsetShouldBe(resultSet, JaggedToRectangular(rows));
+            return actions;
+        }
+
+        public static SqlDatabaseTestActions ResultsetShouldBe(this SqlDatabaseTestActions actions,
+            int resultSet,
+            params object[][] expectedRows)
+        {
+            var rows = expectedRows.Where(r => r != null).Select(r => r.Select(c => c?.ToString()).ToArray()).ToArray();
+            actions.TestAction.ResultsetShouldBe(resultSet, JaggedToRectangular(rows));
+            return actions;
+
+        }
+
+        public static SqlDatabaseTestActions ResultsetShouldBe(this SqlDatabaseTestActions actions,
+            int resultSet,
+            object[,] expectedRows
+            )
+        {
+            var numRows = expectedRows.GetLength(0);
+            var numColumns = expectedRows.GetLength(1);
+            var stringyRows = new string[numRows, numColumns];
+            for (var i = 0; i < numRows; i++)
+            {
+                for (var j = 0; j < numColumns; j++)
+                {
+                    stringyRows[i, j] = expectedRows[i, j]?.ToString();
+                }
+            }
+            actions.TestAction.ResultsetShouldBe(resultSet, stringyRows);
             return actions;
         }
 
@@ -97,16 +140,19 @@ namespace SimpleSqlUnitTesting
                 {
 
                     var expectedValue = expectedStrings[rowIndex, colIndex];
-                    yield return new ScalarValueCondition
+                    if (expectedValue != SqlTestConstants.AnyResult)
                     {
-                        ColumnNumber = colIndex + 1,
-                        Enabled = true,
-                        ExpectedValue = expectedValue,
-                        Name = $"that value at resultset #{resultSet}, row #{rowIndex + 1}, column #{colIndex + 1} should be {expectedValue}",
-                        NullExpected = expectedValue == null,
-                        ResultSet = resultSet,
-                        RowNumber = rowIndex + 1
-                    };
+                        yield return new ScalarValueCondition
+                        {
+                            ColumnNumber = colIndex + 1,
+                            Enabled = true,
+                            ExpectedValue = expectedValue,
+                            Name = $"that value at resultset #{resultSet}, row #{rowIndex + 1}, column #{colIndex + 1} should be {expectedValue}",
+                            NullExpected = expectedValue == null,
+                            ResultSet = resultSet,
+                            RowNumber = rowIndex + 1
+                        };
+                    }
                 }
 
             yield return new RowCountCondition

@@ -1,8 +1,8 @@
 ﻿using System;
-using Frontiers.Impact.ImpactDB.Tests.Framework;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using SimpleSqlUnitTesting;
 
-namespace AdventureWorksUnitTesting
+namespace AdventureWorks.Tests
 {
     [TestClass]
     public class uspUpdateEmployeeHireInfo : LocalTransactionSqlTest
@@ -26,8 +26,7 @@ VALUES ('TEST',100,100,'20160101');
                        ,[Availability]
                        ,[ModifiedDate] 
                 FROM [Production].[Location]")
-                .ResultsetShouldBe(1, @"
-				TEST	100.00	100.00	2016-01-01 00:00:00.000"));
+                .ResultsetShouldBe(1, new object[] { "TEST", 100, 100, new DateTime(2016, 1, 1) }));
         }
 
         [TestMethod]
